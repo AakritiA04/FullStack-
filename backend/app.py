@@ -10,14 +10,14 @@ from backend.models import Workflow
 from backend.database import Base, engine, get_db
 
 
-# initialize FastAPI
+
 app = FastAPI()
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-# allow React frontend
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -26,14 +26,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# initialize ChromaDB
+
 chroma_client = chromadb.PersistentClient(path="./chroma_data")
 collection = chroma_client.get_or_create_collection("pdf_chunks")
 
-# initialize local embedding model (free)
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# ✅ Create tables
+
 Base.metadata.create_all(bind=engine)
 
 # ----------- ROUTES -----------
@@ -60,16 +59,13 @@ async def upload_pdf(file: UploadFile = File(...)):
     for page in doc:
         text += page.get_text()
 
-    # split into chunks
     chunks = [text[i:i+500] for i in range(0, len(text), 500)]
 
     if not chunks:
         return {"error": "No text found in PDF"}
 
-    # get embeddings locally
     embeddings = model.encode(chunks).tolist()
 
-    # store in Chroma
     ids = [str(uuid.uuid4()) for _ in chunks]
     collection.add(documents=chunks, embeddings=embeddings, ids=ids)
 
@@ -81,10 +77,8 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 @app.post("/query")
 async def query_collection(question: str = Body(..., embed=True)):
-    # embed the question locally
     query_embedding = model.encode([question]).tolist()[0]
 
-    # search in Chroma
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=3
